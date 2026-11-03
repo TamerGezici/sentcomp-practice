@@ -27,13 +27,27 @@ Works on: iPhone (Safari), Android (Chrome), tablets, and computers (Chrome, Edg
 3. Go to **Settings → Pages**. Under "Build and deployment", choose **Deploy from a branch**, then `main` and `/ (root)`. Click Save.
 4. After about a minute the site is live at `https://<your-username>.github.io/sentcomp-practice/`.
 
-Give each family a personal link with their code already filled in:
+## Two modes
+
+| Mode | What it shows | Use it to |
+|---|---|---|
+| `test` | the demo sentence, then the 5 `TEST_SENTENCES` (about 1 min) | check the mic, the sound quality and the file sending before the real run |
+| `main` | the demo sentence, then all `SENTENCES` once in random order (101 sentences, about 16 min) | do the assessment |
+
+The test sentences are separate from the main list, so the child doesn't see any sentence twice. Send each family two links with their code already filled in:
 
 ```
-https://<your-username>.github.io/sentcomp-practice/?id=P07
+https://<your-username>.github.io/sentcomp-practice/?id=P07&mode=test
+https://<your-username>.github.io/sentcomp-practice/?id=P07&mode=main
 ```
 
-Other link options: `&blocks=4&trials=5` changes the length, `&example=0` drops the demo sentence, and `&mic=0` skips the microphone (the parent records the sound on a second phone).
+If the link has no `mode=`, the welcome screen shows both buttons.
+
+Other link options:
+- `&trials=5`: sentences per block. Leftover sentences go into the last block, so 101 becomes 19 blocks of 5 and one of 6.
+- `&blocks=2`: stop after 2 blocks, for your own quick checks.
+- `&example=0`: leave out the demo sentence.
+- `&mic=0`: skip the microphone. The parent then records the sound on a second phone.
 
 **Before sending it to a family, do one full test run on an iPhone and one on an Android phone.** That includes sending the files to yourself.
 
@@ -41,8 +55,9 @@ Other link options: `&blocks=4&trials=5` changes the length, `&example=0` drops 
 
 At the end, the **Dosyaları gönder** button opens the phone's share menu (WhatsApp, e-mail, Drive…). Download links are also shown, as a fallback and for computers. The family sends you:
 
-- `P07_2026-11-03_14h02_sentcomp.csv`: one row per sentence, with the same column names as the scanner output (`block_no`, `block_type`, `trial_no`, `stimuli`, `vis_sentence_started`, `vis_sentence_rt`, `vis_sentence_keys` …). It also has:
-  - `stim_no`: the sentence's row in the Excel file
+- `P07_2026-11-03_14h02_sentcomp-main.csv` (or `-test`): one row per sentence, with the same column names as the scanner output (`block_no`, `block_type`, `trial_no`, `stimuli`, `vis_sentence_started`, `vis_sentence_rt`, `vis_sentence_keys` …). It also has:
+  - `mode`: `test` or `main`
+  - `stim_no`: the sentence's row in the Excel file (`T1`–`T5` in test mode, empty for the demo sentence)
   - `audio_file`, `audio_onset`, `audio_offset`: where that sentence is in the recording, in seconds
   - `interrupted`: set to 1 if the child left the page in the middle of that sentence. The sentence is then shown again.
   - `mic`: `recorded`, `none`, or `lost`
@@ -53,7 +68,7 @@ The session is also kept on the phone. If the page is closed before the files ar
 To get one clip per sentence (ffmpeg must be installed):
 
 ```
-python split_recording.py P07_2026-11-03_14h02_sentcomp.csv
+python split_recording.py P07_2026-11-03_14h02_sentcomp-main.csv
 ```
 
 This also writes the full recording as a WAV and an Audacity label track. In Audacity, use File → Import → Labels, and every sentence will be marked on the timeline.
@@ -61,7 +76,8 @@ This also writes the full recording as a WAV and an Audacity label track. In Aud
 ## Before using it with patients
 
 - **Consent and ethics.** The pediatric consent form currently has no voice-recording sentence. Recording a child at home and receiving the file over WhatsApp or e-mail should be covered by the consent form and the application. KVKK treats a voice recording as personal data. Ask families to delete the files from their phone and chat once you've confirmed you received them.
-- **Overlap with the scanner items.** `config.js` contains all 101 sentences from `sent_comp_TR_PEDIATRIC_NEW.xlsx`, and the scanner draws from the same 101. Some sentences the child practised will therefore come up again in the scanner. To avoid this, either give the practice its own list in `config.js`, or use the `stim_no` column to remove the practised rows from the scanner file.
+- **Overlap with the scanner items.** Main mode shows all 101 sentences from `sent_comp_TR_PEDIATRIC_NEW.xlsx`, which is the same set the scanner draws from. The child will therefore have seen every scanner sentence before the scan.
+- **The test sentences** in `config.js` were written for this page in the style of the pediatric set. Check them, or replace them with your own practice items.
 - **Wording.** The instructions say "Cümleyi sesli oku ve boşluğa uyan kelimeyi söyle." Edit `instructions` in `config.js` if you want the child to say only the missing word.
 
 ## Possible upgrade: automatic upload

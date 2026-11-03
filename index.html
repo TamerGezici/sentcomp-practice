@@ -120,7 +120,7 @@
     <input id="pid" type="text" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
     <p class="muted" data-t="idHelp"></p>
     <p class="note bad" id="idErr" data-t="idMissing" hidden></p>
-    <button class="btn" id="btnWelcome" type="button" data-t="start"></button>
+    <div id="modeList"></div>
     <p class="muted" data-t="contact" data-optional></p>
     <section id="stored" hidden>
       <h2 data-t="storedTitle"></h2>
@@ -149,8 +149,8 @@
 <!-- 3. End / send files (parent) -->
 <main id="scrEnd" class="page" hidden>
   <div class="card">
-    <h1 data-t="endTitle"></h1>
-    <p data-t="endSend"></p>
+    <h1 id="endTitle"></h1>
+    <p id="endSend"></p>
     <p class="note" id="endNoMic" data-t="endNoMic" hidden></p>
     <div id="endFiles"></div>
     <p class="muted" data-t="endKeep"></p>
@@ -184,7 +184,8 @@
   const posInt = (k, d) => { const v = parseInt(q.get(k), 10); return v > 0 ? v : d; };
   const P = {
     id: cleanId(q.get('id') || ''),
-    blocks: posInt('blocks', C.blocks || 4),
+    mode: ['test', 'main'].includes(q.get('mode')) ? q.get('mode') : '',   // '' = offer both
+    maxBlocks: posInt('blocks', 0),            // quick-check shortcut: stop after N blocks
     trials: posInt('trials', C.trialsPerBlock || 5),
     useMic: q.get('mic') !== '0',
     example: q.get('example') !== '0' && !!C.exampleSentence,
@@ -215,19 +216,53 @@
     return e;
   }
 
-  /* ---------------- session + output ---------------- */
-  const session = { base: '', id: '', date: '', created: 0, mic: 'none', complete: false, sent: false, rows: [] };
-  let expT0 = 0;                              // experiment clock origin (like exp_clock in PsychoPy)
+  /* ---------------- modes ---------------- */
+  const MT = T.modes || {};
+  const MODES = {
+    test: (window.TEST_SENTENCES || []).map((text, i) => ({ text, no: 'T' + (i + 1) })),
+    main: SENT.map((text, i) => ({ text, no: i + 1 })),
+  };
+  // Every sentence once, in blocks of P.trials; leftovers join the last block.
+  function blockPlan(n) {
+    const per = P.trials, nb = Math.max(1, Math.floor(n / per));
+    const sizes = Array(nb).fill(per);
+    sizes[nb - 1] += n - nb * per;
+    return P.maxBlocks ? sizes.slice(0, P.maxBlocks) : sizes;
+  }
+  const planTotal = (sizes) => sizes.reduce((a, b) => a + b, 0);
+  const estMinutes = (sizes) => Math.max(1, Math.round((planTotal(sizes) * 8 + (sizes.length - 1) * 5 + 40) / 60));
+  const fmt = (s, v) => String(s || '').replace(/\{(\w+)\}/g, (m, k) => (k in v ? v[k] : m));
 
-  function initSession(id) {
-    const d = new Date(), p = (n) => String(n).padStart(2, '0');
-    session.id = id;
-    session.created = d.getTime();
-    session.date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}h${p(d.getMinutes())}`;
-    session.base = `${id}_${session.date}_sentcomp`;
+  function renderModes() {
+    const host = $('modeList');
+    const keys = (P.mode ? [P.mode] : ['test', 'main']).filter((k) => MODES[k].length);
+    keys.forEach((k, i) => {
+      const plan = blockPlan(MODES[k].length);
+      const v = { n: planTotal(plan), min: estMinutes(plan) };
+      const t = MT[k] || {};
+      if (t.label) host.append(el('h2', '', t.label));
+      if (t.intro) host.append(el('p', 'muted', fmt(t.intro, v)));
+      const b = el('button', i === 0 ? 'btn' : 'btn ghost', P.mode ? T.start : fmt(t.button, v));
+      b.type = 'button';
+      b.addEventListener('click', () => begin(k));
+      host.append(b);
+    });
   }
 
-  const COLS = ['subject', 'date', 'expName', 'device', 'mic', 'block_no', 'block_type', 'trial_no', 'stim_no', 'stimuli',
+  /* ---------------- session + output ---------------- */
+  const session = { base: '', id: '', mode: '', date: '', created: 0, mic: 'none', complete: false, sent: false, rows: [] };
+  let expT0 = 0;                              // experiment clock origin (like exp_clock in PsychoPy)
+
+  function initSession(id, mode) {
+    const d = new Date(), p = (n) => String(n).padStart(2, '0');
+    session.id = id;
+    session.mode = mode;
+    session.created = d.getTime();
+    session.date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}h${p(d.getMinutes())}`;
+    session.base = `${id}_${session.date}_sentcomp-${mode}`;
+  }
+
+  const COLS = ['subject', 'date', 'expName', 'mode', 'device', 'mic', 'block_no', 'block_type', 'trial_no', 'stim_no', 'stimuli',
     'vis_sentence_started', 'vis_sentence_stopped', 'vis_sentence_rt', 'vis_sentence_keys',
     'audio_file', 'audio_onset', 'audio_offset', 'interrupted'];
 
@@ -238,7 +273,7 @@
 
   function logRow(b, t, item, type, on, off, key, a0, interrupted) {
     session.rows.push({
-      subject: session.id, date: session.date, expName: C.expName || 'langloc_home', device: ua, mic: session.mic,
+      subject: session.id, date: session.date, expName: C.expName || 'langloc_home', mode: session.mode, device: ua, mic: session.mic,
       block_no: b, block_type: type, trial_no: t, stim_no: item.no || '', stimuli: item.text,
       vis_sentence_started: r3((on - expT0) / 1000),
       vis_sentence_stopped: r3((off - expT0) / 1000),
@@ -515,12 +550,7 @@
   }
 
   /* ---------------- the task ---------------- */
-  let pool = [];
   function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
-  function nextItem() {
-    if (!pool.length) pool = shuffle(SENT.map((text, i) => ({ text, no: i + 1 })));
-    return pool.pop();
-  }
 
   async function runTrial(b, t, item, type) {
     for (;;) {
@@ -559,12 +589,14 @@
 
     if (P.example) await runTrial(0, 1, { text: C.exampleSentence, no: '' }, 'EXAMPLE');
 
+    const items = shuffle(MODES[session.mode].slice());   // each sentence once, random order
+    const plan = blockPlan(items.length);
     const startText = coarse ? T.blockStartTouch : T.blockStartKey;
-    for (let b = 1; b <= P.blocks; b++) {
+    for (let b = 1; b <= plan.length; b++) {
       if (b > 1) await step(async () => { stage({ text: T.rest }); await wait(C.restSec != null ? C.restSec : 3); });
-      await step(async () => { stage({ text: `${startText}\n\n${b}/${P.blocks}` }); await waitTap(0.4); });
+      await step(async () => { stage({ text: `${startText}\n\n${b}/${plan.length}` }); await waitTap(0.4); });
       await step(async () => { stage({ text: '' }); await wait(C.blankSec != null ? C.blankSec : 0.5); });
-      for (let t = 1; t <= P.trials; t++) await runTrial(b, t, nextItem(), C.blockType || 'VIS-SENT');
+      for (let t = 1; t <= plan[b - 1]; t++) await runTrial(b, t, items.pop(), C.blockType || 'VIS-SENT');
     }
     await finish();
   }
@@ -579,6 +611,9 @@
     try { if (wakeLock) await wakeLock.release(); } catch (e) { /* ignore */ }
     await new Promise((r) => setTimeout(r, 1800));
     exitFullscreen();
+    const mt = MT[session.mode] || {};
+    $('endTitle').textContent = mt.endTitle || '';
+    $('endSend').textContent = mt.endSend || '';
     show('scrEnd');
     $('endNoMic').hidden = session.mic === 'recorded';
     sendUI($('endFiles'), session, buildFiles(session, Rec.parts));
@@ -642,7 +677,8 @@
       const box = el('div', 'session');
       const n = s.rows.filter((r) => r.block_no > 0 && !r.interrupted).length;
       const when = new Date(s.created).toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' });
-      box.append(el('p', '', [s.id, when, `${n} ${T.storedTrials}`, s.complete ? '' : T.storedPartial, s.sent ? T.storedSent : ''].filter(Boolean).join(' · ')));
+      const label = (MT[s.mode] || {}).label;
+      box.append(el('p', '', [s.id, label, when, `${n} ${T.storedTrials}`, s.complete ? '' : T.storedPartial, s.sent ? T.storedSent : ''].filter(Boolean).join(' · ')));
       const inner = el('div');
       sendUI(inner, s, buildFiles(s, parts));
       const del = el('button', 'btn ghost small', T.deleteBtn); del.type = 'button';
@@ -660,15 +696,16 @@
   }
 
   /* ---------------- wiring ---------------- */
-  $('btnWelcome').addEventListener('click', () => {
+  function begin(mode) {
     const id = cleanId($('pid').value);
     if (!id) { $('idErr').hidden = false; $('pid').focus(); return; }
     $('idErr').hidden = true;
-    initSession(id);
+    initSession(id, mode);
     if (!P.useMic) { session.mic = 'none'; runTask(); return; }
     show('scrMic');
     if (!Rec.supported()) { $('btnMicAllow').hidden = true; micError(T.micUnsupported); }
-  });
+  }
+  renderModes();
 
   $('btnMicAllow').addEventListener('click', async () => {
     $('micErr').hidden = true;

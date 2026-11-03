@@ -52,9 +52,10 @@ def main():
             continue
         on, off = float(r['audio_onset']), float(r['audio_offset'])
         start, end = max(0.0, on - args.pre), off + args.post
-        stim = r['stim_no'] or 'ex'
+        stim = r['stim_no'] or 'ex'                       # 45, T3 (test mode) or ex (demo)
+        stim = stim.zfill(3) if stim.isdigit() else stim
         tag = '_interrupted' if r.get('interrupted') == '1' else ''
-        name = f"b{int(r['block_no']):02d}_t{int(r['trial_no']):02d}_stim{stim.zfill(3) if stim != 'ex' else stim}{tag}.wav"
+        name = f"b{int(r['block_no']):02d}_t{int(r['trial_no']):02d}_stim{stim}{tag}.wav"
         # -ss after -i: accurate cut even though browser recordings have no seek index
         ffmpeg('-i', str(src), '-ss', f'{start:.3f}', '-to', f'{end:.3f}', '-ac', '1', '-ar', '16000', str(out_dir / name))
         labels.setdefault(src, []).append(f"{on:.3f}\t{off:.3f}\tb{r['block_no']} t{r['trial_no']}{tag}: {r['stimuli'].strip()}")

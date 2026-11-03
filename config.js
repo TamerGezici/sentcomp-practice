@@ -2,8 +2,11 @@
    Everything you would normally edit lives in this file.
    URL parameters override some settings without editing anything:
      ?id=P07          pre-fills the participant code
-     ?blocks=4        number of blocks
+     ?mode=test       5-sentence check of the microphone / setup (TEST_SENTENCES)
+     ?mode=main       every sentence in SENTENCES
+                      (no mode in the link: the welcome screen offers both)
      ?trials=5        sentences per block
+     ?blocks=2        stop after 2 blocks (for quick checks)
      ?mic=0           skip the microphone (parent records separately)
      ?example=0       skip the demo sentence
    ========================================================================== */
@@ -12,7 +15,8 @@ window.CONFIG = {
   expName: 'langloc_home',
   blockType: 'VIS-SENT',     // written to the block_type column, as in the scanner output
 
-  blocks: 4,                 // 4 x 5 = 20 sentences
+  // Each mode shows every sentence in its list, in blocks of trialsPerBlock
+  // (leftover sentences join the last block, e.g. 101 = 19 x 5 + 6).
   trialsPerBlock: 5,         // scanner default is also 5
 
   minResponseSec: 0.6,       // taps sooner than this after a sentence appears are ignored (stops double-tap skips)
@@ -20,7 +24,7 @@ window.CONFIG = {
   blankSec: 0.5,             // blank screen after the block-start tap (same as scanner)
   restSec: 3,                // rest screen between blocks (scanner: 5–15 s)
 
-  // One demo sentence before block 1, logged as block 0 / EXAMPLE. Set to '' to skip.
+  // One demo sentence before block 1 in both modes, logged as block 0 / EXAMPLE. Set to '' to skip.
   exampleSentence: 'Kedi kasedeki sütü ___.',
 
   normalizeBlank: true,      // draw every run of underscores as the same-length line
@@ -32,11 +36,12 @@ window.CONFIG = {
 /* Text shown on screen. Parent-facing screens use "siz", child-facing screens use "sen". */
 window.TEXT = {
   title: 'Cümle Tamamlama Alıştırması',
-  welcomeIntro: 'Bu kısa alıştırma, çocuğunuzun MR çekiminde yapacağı cümle tamamlama görevine benzer. Yaklaşık 5 dakika sürer.',
+  welcomeIntro: 'Bu alıştırma, çocuğunuzun MR çekiminde yapacağı cümle tamamlama görevine benzer.',
   tips: [
     'Sessiz bir oda seçin; televizyonu ve müziği kapatın.',
     'Telefonu sessize alın ve çocuğunuzun önüne, yaklaşık bir kol mesafesine koyun.',
     'Alıştırma sırasında başka bir uygulamaya geçmeyin.',
+    'Her bölümün başında çocuğunuz istediği kadar dinlenebilir; hazır olunca ekrana dokunur.',
     'Örnek cümlede yardım edebilirsiniz; sonraki cümlelerde lütfen yardım etmeyin.',
   ],
   privacy: 'Ses kaydı internete yüklenmez; yalnızca bu cihazda oluşturulur ve saklanır. Alıştırma bitince dosyaları araştırmacıya siz gönderirsiniz.',
@@ -45,6 +50,24 @@ window.TEXT = {
   idHelp: 'Araştırmacının size verdiği kodu yazın.',
   idMissing: 'Lütfen katılımcı kodunu yazın.',
   start: 'Başla',
+
+  // {n} = number of sentences, {min} = rough duration in minutes
+  modes: {
+    test: {
+      label: 'Deneme',
+      intro: '{n} cümle, yaklaşık {min} dakika. Mikrofonun ve ses kaydının düzgün çalıştığını kontrol etmek içindir.',
+      button: 'Denemeyi başlat ({n} cümle)',
+      endTitle: 'Deneme tamamlandı. Teşekkürler!',
+      endSend: 'Lütfen aşağıdaki dosyaları araştırmacıya gönderin. Ses kaydını kontrol ettikten sonra size ana alıştırma için haber vereceğiz.',
+    },
+    main: {
+      label: 'Ana alıştırma',
+      intro: '{n} cümle, yaklaşık {min} dakika. Lütfen önce denemeyi yapın ve araştırmacıdan haber bekleyin.',
+      button: 'Ana alıştırmayı başlat ({n} cümle)',
+      endTitle: 'Alıştırma tamamlandı. Teşekkürler!',
+      endSend: 'Lütfen aşağıdaki dosyaları araştırmacıya gönderin.',
+    },
+  },
   contact: '',               // e.g. 'Sorun olursa: Tamer Gezici, 05xx xxx xx xx' (shown on first and last screen)
 
   storedTitle: 'Bu cihazda kayıtlı oturumlar',
@@ -76,9 +99,7 @@ window.TEXT = {
   paused: 'Ara verildi.\n\nDevam etmek için ekrana dokun.',
   finishedChild: 'Bitti!\nTeşekkürler 🌟',
 
-  // End screen (parent)
-  endTitle: 'Alıştırma tamamlandı. Teşekkürler!',
-  endSend: 'Lütfen aşağıdaki dosyaları araştırmacıya gönderin.',
+  // End screen (parent); the title and first line come from modes above
   endKeep: 'Sayfayı kapatırsanız, aynı bağlantıyı bu cihazda yeniden açarak dosyalara tekrar ulaşabilirsiniz.',
   endNoMic: 'Sesi başka bir telefonla kaydettiyseniz, o kaydı da gönderin.',
   shareBtn: 'Dosyaları gönder',
@@ -89,10 +110,20 @@ window.TEXT = {
   downloadAlt: 'Gönderme çalışmazsa dosyaları indirin:',
 };
 
-/* Sentences: all 101 rows of sent_comp_TR_PEDIATRIC_NEW.xlsx, in spreadsheet order.
+/* Test mode: separate items so the main run doesn't repeat them.
+   Written in the style of the pediatric set; please check / replace. stim_no = T1..T5. */
+window.TEST_SENTENCES = [
+  'Okul çantamı sırtıma ___.',
+  'Kırmızı balonum havaya ___.',
+  'Köpeğimiz bahçede kemiğini ___.',
+  'Ayakkabılarımın bağcıklarını ___.',
+  'Otobüse binmek için durakta ___.',
+];
+
+/* Main mode: all 101 rows of sent_comp_TR_PEDIATRIC_NEW.xlsx, in spreadsheet order.
    stim_no in the output CSV = position in this list = Excel row number.
-   Each session draws sentences at random without repeats (like the scanner script).
-   To give the home practice its own items, replace this list. */
+   Shown in random order, each once. Row 1 of the file is a sentence (there is no header row),
+   so this is 101 sentences; delete one line here if you want exactly 100 (20 x 5). */
 window.SENTENCES = [
   "Yolda yürürken ayağı takıldı ve ___.",
   "Kayıp oyuncağımı bulunca çok ___.",
