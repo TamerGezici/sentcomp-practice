@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#808080">
+<title>Cümle Tamamlama</title>
+<style>
+  :root {
+    --task-bg: #808080;   /* PsychoPy's default window grey, as in the scanner */
+    --task-fg: #ffffff;
+    --card: #ffffff;
+    --ink: #1c1c1e;
+    --muted: #5f6066;
+    --line: #d9d9de;
+    --soft: #f2f3f5;
+    --accent: #1d4ed8;
+    --good: #1f7a3a;
+    --good-bg: #e7f4eb;
+    --bad: #b42318;
+    --bad-bg: #fdecea;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--task-bg);
+    color: var(--ink);
+    font: 17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  [hidden] { display: none !important; }
+
+  /* ---------- parent-facing screens ---------- */
+  .page {
+    min-height: 100vh; min-height: 100dvh;
+    display: flex; align-items: center; justify-content: center;
+    padding: calc(20px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom));
+  }
+  .card {
+    width: 100%; max-width: 34rem;
+    background: var(--card); border-radius: 16px; padding: 24px 20px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 10px 30px rgba(0,0,0,.14);
+  }
+  h1 { font-size: 1.4rem; line-height: 1.25; margin: 0 0 .6rem; text-wrap: balance; }
+  h2 { font-size: 1.02rem; margin: 1.3rem 0 .4rem; }
+  p { margin: .5rem 0; }
+  .muted { color: var(--muted); font-size: .94rem; }
+  ul.tips { padding-left: 1.15rem; margin: .5rem 0 .9rem; }
+  ul.tips li { margin: .3rem 0; }
+  label { display: block; font-weight: 650; margin: 1.1rem 0 .35rem; }
+  input[type=text] {
+    width: 100%; font: inherit; font-size: 1.15rem; letter-spacing: .03em;
+    padding: .75rem .85rem; border: 1.5px solid var(--line); border-radius: 10px; color: var(--ink);
+  }
+  input[type=text]:focus { outline: 3px solid rgba(29,78,216,.25); border-color: var(--accent); }
+  .btn {
+    display: block; width: 100%; min-height: 52px; margin-top: .8rem; padding: .8rem 1rem;
+    font: inherit; font-weight: 650; font-size: 1.05rem; text-align: center; text-decoration: none;
+    border-radius: 12px; border: 1.5px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer;
+  }
+  .btn.ghost { border-color: var(--line); background: transparent; color: var(--ink); }
+  .btn.small { min-height: 44px; font-size: .95rem; font-weight: 600; }
+  .note { padding: .7rem .85rem; border-radius: 10px; background: var(--soft); font-size: .94rem; margin: .8rem 0; }
+  .note.bad { background: var(--bad-bg); color: var(--bad); }
+  .note.good { background: var(--good-bg); color: var(--good); }
+  .meter { height: 20px; border-radius: 10px; background: var(--soft); overflow: hidden; margin: 1rem 0 .3rem; border: 1px solid var(--line); }
+  .meter > i { display: block; height: 100%; width: 0; background: var(--good); transition: width 60ms linear; }
+  .files { list-style: none; padding: 0; margin: .4rem 0; }
+  .files li { display: flex; justify-content: space-between; align-items: baseline; gap: .75rem; padding: .55rem 0; border-bottom: 1px solid var(--line); font-size: .93rem; }
+  .files a { color: var(--accent); word-break: break-all; }
+  .files span { white-space: nowrap; }
+  .session { border: 1px solid var(--line); border-radius: 12px; padding: .2rem .9rem .9rem; margin: .7rem 0; }
+  .session > p:first-child { font-weight: 600; }
+
+  /* ---------- child-facing task stage ---------- */
+  #stage {
+    position: fixed; inset: 0; background: var(--task-bg); color: var(--task-fg);
+    display: flex; flex-direction: column;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  }
+  #stageLabel {
+    min-height: 2.6rem; padding: calc(14px + env(safe-area-inset-top)) 16px 0;
+    text-align: center; font-size: 1rem; font-weight: 650; letter-spacing: .12em;
+  }
+  #stageText {
+    flex: 1; display: flex; align-items: center; justify-content: center; text-align: center;
+    padding: 0 max(16px, 6vw); white-space: pre-line;
+    font-size: clamp(22px, 5.4vw, 40px); line-height: 1.4;
+  }
+  #stageText.sentence { font-size: clamp(28px, 7.4vw, 66px); font-weight: 500; line-height: 1.35; white-space: normal; }
+  #stageText.fix { font-size: clamp(56px, 16vw, 120px); line-height: 1; }
+  #stageText .nw { white-space: nowrap; }
+  #stageText .blank { display: inline-block; width: 2.6em; height: 0; border-bottom: .075em solid currentColor; margin-left: .08em; }
+  #stageBar { padding: 0 16px calc(22px + env(safe-area-inset-bottom)); display: flex; justify-content: center; }
+  #stageBtn {
+    width: min(100%, 26rem); min-height: 78px;
+    font: inherit; font-size: 1.7rem; font-weight: 750; letter-spacing: .06em;
+    color: #1c1c1e; background: #fff; border: 0; border-radius: 18px;
+    box-shadow: 0 3px 0 rgba(0,0,0,.2); cursor: pointer;
+  }
+  #stageBtn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.2); }
+  #stageBtn.invisible { visibility: hidden; }
+</style>
+</head>
+<body>
+
+<!-- 1. Welcome / participant code (parent) -->
+<main id="scrWelcome" class="page">
+  <div class="card">
+    <h1 data-t="title"></h1>
+    <p data-t="welcomeIntro"></p>
+    <ul class="tips" id="tips"></ul>
+    <p class="note" data-t="privacy"></p>
+    <p class="note bad" id="inAppNote" data-t="inApp" hidden></p>
+    <label for="pid" data-t="idLabel"></label>
+    <input id="pid" type="text" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
+    <p class="muted" data-t="idHelp"></p>
+    <p class="note bad" id="idErr" data-t="idMissing" hidden></p>
+    <button class="btn" id="btnWelcome" type="button" data-t="start"></button>
+    <p class="muted" data-t="contact" data-optional></p>
+    <section id="stored" hidden>
+      <h2 data-t="storedTitle"></h2>
+      <div id="storedList"></div>
+    </section>
+  </div>
+</main>
+
+<!-- 2. Microphone check (parent) -->
+<main id="scrMic" class="page" hidden>
+  <div class="card">
+    <h1 data-t="micTitle"></h1>
+    <p data-t="micAsk"></p>
+    <button class="btn" id="btnMicAllow" type="button" data-t="micAllow"></button>
+    <div id="micLive" hidden>
+      <p data-t="micTest"></p>
+      <div class="meter"><i id="meterBar"></i></div>
+      <button class="btn" id="btnMicOk" type="button" data-t="micOk"></button>
+    </div>
+    <p class="note bad" id="micErr" hidden></p>
+    <button class="btn ghost" id="btnMicSkip" type="button" data-t="micSkip"></button>
+    <p class="muted" data-t="micSkipNote"></p>
+  </div>
+</main>
+
+<!-- 3. End / send files (parent) -->
+<main id="scrEnd" class="page" hidden>
+  <div class="card">
+    <h1 data-t="endTitle"></h1>
+    <p data-t="endSend"></p>
+    <p class="note" id="endNoMic" data-t="endNoMic" hidden></p>
+    <div id="endFiles"></div>
+    <p class="muted" data-t="endKeep"></p>
+    <p class="muted" data-t="contact" data-optional></p>
+  </div>
+</main>
+
+<!-- Task stage (child) -->
+<div id="stage" hidden>
+  <div id="stageLabel"></div>
+  <div id="stageText"></div>
+  <div id="stageBar"><button id="stageBtn" type="button" class="invisible"></button></div>
+</div>
+
+<noscript><main class="page"><div class="card">Bu sayfa için JavaScript gerekli.</div></main></noscript>
+
+<script src="config.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const C = window.CONFIG || {};
+  const T = window.TEXT || {};
+  const SENT = window.SENTENCES || [];
+  const $ = (id) => document.getElementById(id);
+  const PAUSE = { paused: true };              // sentinel thrown when the task is interrupted
+  const r3 = (x) => Math.round(x * 1000) / 1000;
+
+  /* ---------------- parameters (URL overrides config) ---------------- */
+  const q = new URLSearchParams(location.search);
+  const posInt = (k, d) => { const v = parseInt(q.get(k), 10); return v > 0 ? v : d; };
+  const P = {
+    id: cleanId(q.get('id') || ''),
+    blocks: posInt('blocks', C.blocks || 4),
+    trials: posInt('trials', C.trialsPerBlock || 5),
+    useMic: q.get('mic') !== '0',
+    example: q.get('example') !== '0' && !!C.exampleSentence,
+  };
+  function cleanId(s) { return String(s).trim().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32); }
+
+  /* ---------------- fill static text ---------------- */
+  document.querySelectorAll('[data-t]').forEach((el) => {
+    const v = T[el.dataset.t];
+    if (v) el.textContent = v; else if (el.hasAttribute('data-optional')) el.hidden = true;
+  });
+  document.title = T.title || document.title;
+  (T.tips || []).forEach((t) => { const li = document.createElement('li'); li.textContent = t; $('tips').append(li); });
+  $('pid').value = P.id;
+
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if ((isIOS && !/Safari\//.test(ua)) || /; wv\)|FBAN|FBAV|Instagram|Line\//.test(ua)) $('inAppNote').hidden = false;
+  const coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+
+  const SCREENS = ['scrWelcome', 'scrMic', 'scrEnd', 'stage'];
+  function show(id) { SCREENS.forEach((s) => { $(s).hidden = s !== id; }); window.scrollTo(0, 0); }
+
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  /* ---------------- session + output ---------------- */
+  const session = { base: '', id: '', date: '', created: 0, mic: 'none', complete: false, sent: false, rows: [] };
+  let expT0 = 0;                              // experiment clock origin (like exp_clock in PsychoPy)
+
+  function initSession(id) {
+    const d = new Date(), p = (n) => String(n).padStart(2, '0');
+    session.id = id;
+    session.created = d.getTime();
+    session.date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}h${p(d.getMinutes())}`;
+    session.base = `${id}_${session.date}_sentcomp`;
+  }
+
+  const COLS = ['subject', 'date', 'expName', 'device', 'mic', 'block_no', 'block_type', 'trial_no', 'stim_no', 'stimuli',
+    'vis_sentence_started', 'vis_sentence_stopped', 'vis_sentence_rt', 'vis_sentence_keys',
+    'audio_file', 'audio_onset', 'audio_offset', 'interrupted'];
+
+  function toCSV(rows) {
+    const cell = (v) => { if (v == null) return ''; const s = String(v); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    return '﻿' + [COLS.join(','), ...rows.map((r) => COLS.map((c) => cell(r[c])).join(','))].join('\r\n') + '\r\n';
+  }
+
+  function logRow(b, t, item, type, on, off, key, a0, interrupted) {
+    session.rows.push({
+      subject: session.id, date: session.date, expName: C.expName || 'langloc_home', device: ua, mic: session.mic,
+      block_no: b, block_type: type, trial_no: t, stim_no: item.no || '', stimuli: item.text,
+      vis_sentence_started: r3((on - expT0) / 1000),
+      vis_sentence_stopped: r3((off - expT0) / 1000),
+      vis_sentence_rt: interrupted ? '' : r3((off - on) / 1000),
+      vis_sentence_keys: key || '',
+      audio_file: a0.file,
+      audio_onset: a0.file ? r3(a0.sec) : '',
+      audio_offset: a0.file ? r3(a0.sec + (off - on) / 1000) : '',
+      interrupted: interrupted ? 1 : 0,
+    });
+    DB.putSession(session);
+  }
+
+  /* ---------------- local backup (IndexedDB) ---------------- */
+  const DB = {
+    db: null,
+    open() {
+      if (this.db) return Promise.resolve(this.db);
+      return new Promise((res) => {
+        let req;
+        try { req = indexedDB.open('sentcomp-home', 1); } catch (e) { return res(null); }
+        req.onupgradeneeded = () => {
+          req.result.createObjectStore('sessions', { keyPath: 'base' });
+          req.result.createObjectStore('files', { keyPath: 'key' });
+        };
+        req.onsuccess = () => { this.db = req.result; res(this.db); };
+        req.onerror = req.onblocked = () => res(null);
+      });
+    },
+    async run(store, mode, fn) {
+      const d = await this.open();
+      if (!d) return null;
+      return new Promise((res) => {
+        let out = null, tx;
+        try { tx = d.transaction(store, mode); } catch (e) { return res(null); }
+        const r = fn(tx.objectStore(store));
+        if (r) r.onsuccess = () => { out = r.result; };
+        tx.oncomplete = () => res(out);
+        tx.onerror = tx.onabort = () => res(null);
+      });
+    },
+    range(base) { return IDBKeyRange.bound(base + '/', base + '/￿'); },
+    putSession(s) { return this.run('sessions', 'readwrite', (st) => st.put(JSON.parse(JSON.stringify(s)))); },
+    putFile(base, f) { return this.run('files', 'readwrite', (st) => st.put({ key: base + '/' + f.name, name: f.name, type: f.type, blob: f.blob })); },
+    sessions() { return this.run('sessions', 'readonly', (st) => st.getAll()); },
+    files(base) { return this.run('files', 'readonly', (st) => st.getAll(this.range(base))); },
+    async remove(base) {
+      await this.run('sessions', 'readwrite', (st) => st.delete(base));
+      await this.run('files', 'readwrite', (st) => st.delete(this.range(base)));
+    },
+  };
+
+  /* ---------------- audio recording ---------------- */
+  function pickMime() {
+    if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
+    const list = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus'];
+    return list.find((m) => { try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } }) || '';
+  }
+  function extFor(type) {
+    type = (type || '').toLowerCase();
+    if (type.includes('webm')) return 'webm';
+    if (type.includes('mp4') || type.includes('aac')) return 'm4a';
+    if (type.includes('ogg')) return 'ogg';
+    if (type.includes('wav')) return 'wav';
+    return 'webm';
+  }
+
+  const Rec = {
+    stream: null, mime: '', cur: null, parts: [], n: 0,
+    supported() { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder); },
+    async open() {
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.stream.getAudioTracks().forEach((t) => t.addEventListener('ended', () => pauseTask()));
+      this.mime = pickMime();
+    },
+    live() { return !!this.stream && this.stream.getAudioTracks().some((t) => t.readyState === 'live'); },
+    start() {
+      const no = ++this.n;
+      const opts = {};
+      if (this.mime) opts.mimeType = this.mime;
+      if (C.audioBitsPerSecond) opts.audioBitsPerSecond = C.audioBitsPerSecond;
+      let r;
+      try { r = new MediaRecorder(this.stream, opts); } catch (e) { r = new MediaRecorder(this.stream); }
+      const seg = { rec: r, startPerf: null, name: '', type: '' };
+      const chunks = [];
+      r.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      seg.ended = new Promise((resolve) => {
+        r.onstop = () => {
+          const blob = new Blob(chunks, { type: seg.type || r.mimeType || 'audio/webm' });
+          const part = { name: seg.name, type: blob.type, blob };
+          if (blob.size) { this.parts.push(part); DB.putFile(session.base, part); }
+          if (this.cur === seg) this.cur = null;
+          resolve(part);
+        };
+      });
+      const callPerf = performance.now();
+      const started = new Promise((resolve) => {
+        let done = false;
+        const fin = (perf) => {
+          if (done) return; done = true;
+          seg.startPerf = perf;
+          seg.type = (r.mimeType || this.mime || 'audio/webm');
+          seg.name = `${session.base}_rec${no}.${extFor(seg.type)}`;
+          resolve();
+        };
+        r.onstart = () => fin(performance.now());
+        setTimeout(() => fin(callPerf), 1500);
+      });
+      r.onerror = (e) => console.warn('MediaRecorder error', e);
+      r.start(1000);
+      this.cur = seg;
+      return started;
+    },
+    stop() {
+      const seg = this.cur;
+      if (!seg) return Promise.resolve(null);
+      try { if (seg.rec.state !== 'inactive') seg.rec.stop(); } catch (e) { /* already stopped */ }
+      return Promise.race([seg.ended, new Promise((r) => setTimeout(() => r(null), 4000))]);
+    },
+    at(perf) {
+      const s = this.cur;
+      return s && s.startPerf != null ? { file: s.name, sec: (perf - s.startPerf) / 1000 } : { file: '', sec: 0 };
+    },
+    close() { if (this.stream) this.stream.getTracks().forEach((t) => t.stop()); this.stream = null; },
+  };
+
+  /* ---------------- mic check screen ---------------- */
+  let meter = null;
+  function newAudioContext() {
+    // Must be created inside the tap handler (before any await) or iOS keeps it suspended.
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    try { const ctx = new Ctx(); if (ctx.resume) ctx.resume(); return ctx; } catch (e) { return null; }
+  }
+  function startMeter(ctx, stream) {
+    if (!ctx) return null;
+    const an = ctx.createAnalyser();
+    an.fftSize = 1024;
+    ctx.createMediaStreamSource(stream).connect(an);
+    const buf = new Uint8Array(an.fftSize);
+    const bar = $('meterBar');
+    const m = { ctx, raf: 0 };
+    const loop = () => {
+      an.getByteTimeDomainData(buf);
+      let s = 0;
+      for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; s += v * v; }
+      bar.style.width = Math.min(100, Math.sqrt(s / buf.length) * 400) + '%';
+      m.raf = requestAnimationFrame(loop);
+    };
+    loop();
+    return m;
+  }
+  function stopMeter() {
+    if (!meter) return;
+    cancelAnimationFrame(meter.raf);
+    try { meter.ctx.close(); } catch (e) { /* ignore */ }
+    meter = null;
+  }
+  function micError(msg) { $('micErr').textContent = msg; $('micErr').hidden = false; }
+
+  /* ---------------- task stage helpers ---------------- */
+  const st = { label: $('stageLabel'), text: $('stageText'), btn: $('stageBtn') };
+  function stage({ label = '', text = '', html = null, cls = '', btn = '' } = {}) {
+    st.label.textContent = label;
+    st.text.className = cls;
+    if (html != null) st.text.innerHTML = '<div>' + html + '</div>'; else st.text.textContent = text;
+    st.btn.textContent = btn;
+    st.btn.classList.toggle('invisible', !btn);
+  }
+
+  const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function sentenceHTML(s) {
+    const t = esc(String(s).replace(/\s+/g, ' ').trim());
+    if (C.normalizeBlank === false) return t;
+    // keep the last word and the blank on the same line
+    return t.replace(/(\S+)\s*_{2,}(\S*)/g, '<span class="nw">$1 <span class="blank"></span>$2</span>');
+  }
+
+  // Waits that are cancelled (rejected with PAUSE) when the task is interrupted.
+  const waiters = new Set();
+  let running = false, paused = false, stopping = null;
+
+  function abortable(setup) {
+    return new Promise((resolve, reject) => {
+      let cleanup = () => {};
+      const w = { abort() { finish(); reject(PAUSE); } };
+      const finish = () => { waiters.delete(w); cleanup(); };
+      waiters.add(w);
+      if (paused) { w.abort(); return; }
+      cleanup = setup((v) => { finish(); resolve(v); }) || cleanup;
+    });
+  }
+  const wait = (sec) => abortable((res) => { const h = setTimeout(res, sec * 1000); return () => clearTimeout(h); });
+
+  const RESP_KEYS = { ' ': 'space', Enter: 'return', '1': '1', '2': '2', '3': '3', '4': '4', ArrowLeft: 'left', ArrowRight: 'right', ArrowDown: 'down' };
+  function listen(onTarget, minDelay, anyKey, res) {
+    const t0 = performance.now();
+    const ready = () => performance.now() - t0 >= minDelay * 1000;
+    const onPtr = (e) => {
+      if (!ready()) return;
+      e.preventDefault();
+      res({ key: e.pointerType === 'mouse' ? 'mouse' : 'touch', t: performance.now() });
+    };
+    const onKey = (e) => {
+      if (e.repeat || e.key === 'Escape' || !ready()) return;
+      const k = RESP_KEYS[e.key] || (anyKey ? e.key : null);
+      if (!k) return;
+      e.preventDefault();
+      res({ key: k, t: performance.now() });
+    };
+    onTarget.addEventListener('pointerdown', onPtr);
+    window.addEventListener('keydown', onKey);
+    return () => { onTarget.removeEventListener('pointerdown', onPtr); window.removeEventListener('keydown', onKey); };
+  }
+  // Response on the BİTTİ / Hazırım button (or response keys)
+  const waitButton = (minDelay = 0) => abortable((res) => listen(st.btn, minDelay, false, res));
+  // Tap anywhere (or any key)
+  const waitTap = (minDelay = 0) => abortable((res) => listen($('stage'), minDelay, true, res));
+  // Same, but never cancelled (used on the pause screen itself)
+  const waitTapRaw = (minDelay = 0) => new Promise((res) => { const off = listen($('stage'), minDelay, true, (v) => { off(); res(v); }); });
+
+  // Run a screen; if interrupted, show the pause screen and run it again.
+  async function step(fn) {
+    for (;;) {
+      try { return await fn(); } catch (e) { if (e !== PAUSE) throw e; await resume(); }
+    }
+  }
+
+  /* ---------------- interruptions ---------------- */
+  function pauseTask() {
+    if (!running || paused) return;
+    paused = true;
+    [...waiters].forEach((w) => w.abort());
+    stopping = Rec.stop();                    // close the current recording file
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') pauseTask(); });
+
+  async function resume() {
+    await stopping;
+    stage({ text: T.paused });
+    await waitTapRaw(0.4);
+    tryFullscreen();
+    requestWakeLock();
+    if (session.mic === 'recorded') {
+      try {
+        if (!Rec.live()) await Rec.open();
+        await Rec.start();
+      } catch (e) {
+        session.mic = 'lost';                 // continue without audio; marked in the CSV
+      }
+    }
+    stage({ cls: 'fix', text: '+' });         // short lead-in so the new recording is running before the next screen
+    await new Promise((r) => setTimeout(r, 700));
+    paused = false;
+  }
+
+  let wakeLock = null;
+  async function requestWakeLock() {
+    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { /* not supported */ }
+  }
+  function tryFullscreen() {
+    if (C.fullscreen === false) return;
+    const d = document.documentElement;
+    const f = d.requestFullscreen || d.webkitRequestFullscreen;
+    if (!f || document.fullscreenElement || document.webkitFullscreenElement) return;
+    try { const p = f.call(d); if (p && p.catch) p.catch(() => {}); } catch (e) { /* ignore */ }
+  }
+  function exitFullscreen() {
+    const f = document.exitFullscreen || document.webkitExitFullscreen;
+    if (f && (document.fullscreenElement || document.webkitFullscreenElement)) { try { const p = f.call(document); if (p && p.catch) p.catch(() => {}); } catch (e) { /* ignore */ } }
+  }
+  function onBeforeUnload(e) {
+    if (running || (session.complete && !session.sent)) { e.preventDefault(); e.returnValue = ''; }
+  }
+
+  /* ---------------- the task ---------------- */
+  let pool = [];
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  function nextItem() {
+    if (!pool.length) pool = shuffle(SENT.map((text, i) => ({ text, no: i + 1 })));
+    return pool.pop();
+  }
+
+  async function runTrial(b, t, item, type) {
+    for (;;) {
+      const onset = performance.now();
+      const a0 = Rec.at(onset);
+      stage({ label: type === 'EXAMPLE' ? T.exampleLabel : '', html: sentenceHTML(item.text), cls: 'sentence', btn: T.doneBtn });
+      let r;
+      try {
+        r = await waitButton(C.minResponseSec || 0);
+      } catch (e) {
+        if (e !== PAUSE) throw e;
+        logRow(b, t, item, type, onset, performance.now(), '', a0, true);
+        await resume();
+        continue;                             // show the same sentence again
+      }
+      logRow(b, t, item, type, onset, r.t, r.key, a0, false);
+      await step(async () => { stage({ cls: 'fix', text: '+' }); await wait(C.itiSec != null ? C.itiSec : 0.5); });
+      return;
+    }
+  }
+
+  async function runTask() {
+    show('stage');
+    tryFullscreen();
+    requestWakeLock();
+    running = true;
+    window.addEventListener('beforeunload', onBeforeUnload);
+    expT0 = performance.now();
+    stage({ cls: 'fix', text: '+' });
+    if (session.mic === 'recorded') {
+      try { await Rec.start(); } catch (e) { session.mic = 'lost'; }
+    }
+    DB.putSession(session);
+
+    await step(async () => { stage({ text: T.instructions, btn: T.ready }); await waitButton(0.8); });
+
+    if (P.example) await runTrial(0, 1, { text: C.exampleSentence, no: '' }, 'EXAMPLE');
+
+    const startText = coarse ? T.blockStartTouch : T.blockStartKey;
+    for (let b = 1; b <= P.blocks; b++) {
+      if (b > 1) await step(async () => { stage({ text: T.rest }); await wait(C.restSec != null ? C.restSec : 3); });
+      await step(async () => { stage({ text: `${startText}\n\n${b}/${P.blocks}` }); await waitTap(0.4); });
+      await step(async () => { stage({ text: '' }); await wait(C.blankSec != null ? C.blankSec : 0.5); });
+      for (let t = 1; t <= P.trials; t++) await runTrial(b, t, nextItem(), C.blockType || 'VIS-SENT');
+    }
+    await finish();
+  }
+
+  async function finish() {
+    running = false;
+    stage({ text: T.finishedChild });
+    await Rec.stop();
+    Rec.close();
+    session.complete = true;
+    await DB.putSession(session);
+    try { if (wakeLock) await wakeLock.release(); } catch (e) { /* ignore */ }
+    await new Promise((r) => setTimeout(r, 1800));
+    exitFullscreen();
+    show('scrEnd');
+    $('endNoMic').hidden = session.mic === 'recorded';
+    sendUI($('endFiles'), session, buildFiles(session, Rec.parts));
+  }
+
+  /* ---------------- sending files ---------------- */
+  function buildFiles(sess, parts) {
+    const files = [new File([toCSV(sess.rows)], sess.base + '.csv', { type: 'text/csv' })];
+    parts.forEach((p) => files.push(new File([p.blob], p.name, { type: (p.type || p.blob.type || 'audio/webm').split(';')[0] })));
+    return files;
+  }
+  function shareable(files) {
+    if (!navigator.share || !navigator.canShare) return null;
+    // Some Android builds only accept webm audio when it is labelled as video/webm.
+    const tries = [files, files.map((f) => (/\.webm$/i.test(f.name) ? new File([f], f.name, { type: 'video/webm' }) : f))];
+    for (const fs of tries) { try { if (navigator.canShare({ files: fs })) return fs; } catch (e) { /* try next */ } }
+    return null;
+  }
+  function fmtSize(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+  function markSent(sess) { sess.sent = true; DB.putSession(sess); }
+
+  function sendUI(host, sess, files) {
+    host.innerHTML = '';
+    const sh = shareable(files);
+    if (sh) {
+      const b = el('button', 'btn', T.shareBtn); b.type = 'button';
+      const msg = el('p', 'note good'); msg.hidden = true;
+      b.addEventListener('click', async () => {
+        try {
+          await navigator.share({ files: sh, title: sess.base });
+          msg.className = 'note good'; msg.textContent = T.shared; msg.hidden = false;
+          markSent(sess);
+        } catch (e) {
+          if (e && e.name === 'AbortError') return;
+          msg.className = 'note bad'; msg.textContent = T.shareFailed; msg.hidden = false;
+        }
+      });
+      host.append(b, el('p', 'muted', T.shareHelp), msg);
+    }
+    host.append(el('h2', '', sh ? T.downloadAlt : T.downloadHdr));
+    const ul = el('ul', 'files');
+    files.forEach((f) => {
+      const li = el('li'), a = el('a', '', f.name);
+      a.href = URL.createObjectURL(f);
+      a.download = f.name;
+      a.addEventListener('click', () => markSent(sess));
+      li.append(a, el('span', 'muted', fmtSize(f.size)));
+      ul.append(li);
+    });
+    host.append(ul);
+  }
+
+  async function showStored() {
+    const all = (await DB.sessions()) || [];
+    const items = all.filter((s) => s.rows && s.rows.length).sort((a, b) => b.created - a.created);
+    if (!items.length) return;
+    const host = $('storedList');
+    host.innerHTML = '';
+    for (const s of items) {
+      const parts = (await DB.files(s.base)) || [];
+      const box = el('div', 'session');
+      const n = s.rows.filter((r) => r.block_no > 0 && !r.interrupted).length;
+      const when = new Date(s.created).toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' });
+      box.append(el('p', '', [s.id, when, `${n} ${T.storedTrials}`, s.complete ? '' : T.storedPartial, s.sent ? T.storedSent : ''].filter(Boolean).join(' · ')));
+      const inner = el('div');
+      sendUI(inner, s, buildFiles(s, parts));
+      const del = el('button', 'btn ghost small', T.deleteBtn); del.type = 'button';
+      let armed = false;
+      del.addEventListener('click', async () => {
+        if (!armed) { armed = true; del.textContent = T.deleteConfirm; return; }
+        await DB.remove(s.base);
+        box.remove();
+        if (!host.children.length) $('stored').hidden = true;
+      });
+      box.append(inner, del);
+      host.append(box);
+    }
+    $('stored').hidden = false;
+  }
+
+  /* ---------------- wiring ---------------- */
+  $('btnWelcome').addEventListener('click', () => {
+    const id = cleanId($('pid').value);
+    if (!id) { $('idErr').hidden = false; $('pid').focus(); return; }
+    $('idErr').hidden = true;
+    initSession(id);
+    if (!P.useMic) { session.mic = 'none'; runTask(); return; }
+    show('scrMic');
+    if (!Rec.supported()) { $('btnMicAllow').hidden = true; micError(T.micUnsupported); }
+  });
+
+  $('btnMicAllow').addEventListener('click', async () => {
+    $('micErr').hidden = true;
+    $('btnMicAllow').disabled = true;
+    const ctx = newAudioContext();
+    try {
+      await Rec.open();
+    } catch (e) {
+      if (ctx) ctx.close();
+      $('btnMicAllow').disabled = false;
+      micError(e && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? T.micDenied : T.micFailed);
+      return;
+    }
+    $('btnMicAllow').hidden = true;
+    $('micLive').hidden = false;
+    try { meter = startMeter(ctx, Rec.stream); } catch (e) { meter = null; }
+  });
+
+  $('btnMicOk').addEventListener('click', () => { stopMeter(); session.mic = 'recorded'; runTask(); });
+  $('btnMicSkip').addEventListener('click', () => { stopMeter(); Rec.close(); session.mic = 'none'; runTask(); });
+
+  showStored();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+# Home sentence-completion practice (pediatric)
+
+A static web page you host on GitHub Pages. It follows the VIS sentence-completion task:
+
+1. The block-start screen shows "1/4". The child taps to start.
+2. A blank screen appears for 0.5 s.
+3. Each sentence stays on screen until the child taps **BİTTİ**.
+4. A fixation cross appears between sentences.
+5. A rest screen appears between blocks.
+
+The background is the same grey as the PsychoPy window. The child reads each sentence aloud and says the missing word. The phone's microphone records the whole session. The page runs entirely in the browser, with no server: the recording never leaves the family's phone until the parent sends it to you.
+
+Works on: iPhone (Safari), Android (Chrome), tablets, and computers (Chrome, Edge, Firefox, Safari). Phones and tablets are the main target.
+
+## Files
+
+| File | What it is |
+|---|---|
+| `index.html` | The task. You shouldn't need to edit it. |
+| `config.js` | Settings, all on-screen text (Turkish), and the sentence list. **Edit this file.** |
+| `tools/split_recording.py` | Run on your own computer. Cuts the recording into one WAV per sentence. Not needed on the website. |
+
+## Put it online (about 5 minutes)
+
+1. Create a new **public** repository on GitHub, for example `sentcomp-practice`. Free GitHub Pages needs a public repository. Only the task and the sentences are in it, never any data.
+2. Upload `index.html` and `config.js` to the root of the repository. You can drag them into "Add file → Upload files".
+3. Go to **Settings → Pages**. Under "Build and deployment", choose **Deploy from a branch**, then `main` and `/ (root)`. Click Save.
+4. After about a minute the site is live at `https://<your-username>.github.io/sentcomp-practice/`.
+
+Give each family a personal link with their code already filled in:
+
+```
+https://<your-username>.github.io/sentcomp-practice/?id=P07
+```
+
+Other link options: `&blocks=4&trials=5` changes the length, `&example=0` drops the demo sentence, and `&mic=0` skips the microphone (the parent records the sound on a second phone).
+
+**Before sending it to a family, do one full test run on an iPhone and one on an Android phone.** That includes sending the files to yourself.
+
+## What the family sends back
+
+At the end, the **Dosyaları gönder** button opens the phone's share menu (WhatsApp, e-mail, Drive…). Download links are also shown, as a fallback and for computers. The family sends you:
+
+- `P07_2026-11-03_14h02_sentcomp.csv`: one row per sentence, with the same column names as the scanner output (`block_no`, `block_type`, `trial_no`, `stimuli`, `vis_sentence_started`, `vis_sentence_rt`, `vis_sentence_keys` …). It also has:
+  - `stim_no`: the sentence's row in the Excel file
+  - `audio_file`, `audio_onset`, `audio_offset`: where that sentence is in the recording, in seconds
+  - `interrupted`: set to 1 if the child left the page in the middle of that sentence. The sentence is then shown again.
+  - `mic`: `recorded`, `none`, or `lost`
+- `P07_..._rec1.webm`: the recording. On iPhone it may be `.m4a` instead. If the session was paused, for example by a phone call or by switching apps, recording starts again after the pause, so you get `rec2`, `rec3` and so on.
+
+The session is also kept on the phone. If the page is closed before the files are sent, opening the same link again shows the saved session with the same send buttons.
+
+To get one clip per sentence (ffmpeg must be installed):
+
+```
+python split_recording.py P07_2026-11-03_14h02_sentcomp.csv
+```
+
+This also writes the full recording as a WAV and an Audacity label track. In Audacity, use File → Import → Labels, and every sentence will be marked on the timeline.
+
+## Before using it with patients
+
+- **Consent and ethics.** The pediatric consent form currently has no voice-recording sentence. Recording a child at home and receiving the file over WhatsApp or e-mail should be covered by the consent form and the application. KVKK treats a voice recording as personal data. Ask families to delete the files from their phone and chat once you've confirmed you received them.
+- **Overlap with the scanner items.** `config.js` contains all 101 sentences from `sent_comp_TR_PEDIATRIC_NEW.xlsx`, and the scanner draws from the same 101. Some sentences the child practised will therefore come up again in the scanner. To avoid this, either give the practice its own list in `config.js`, or use the `stim_no` column to remove the practised rows from the scanner file.
+- **Wording.** The instructions say "Cümleyi sesli oku ve boşluğa uyan kelimeyi söyle." Edit `instructions` in `config.js` if you want the child to say only the missing word.
+
+## Possible upgrade: automatic upload
+
+If you don't want families to send files by hand, the page can upload directly without a server of your own:
+
+- [DataPipe](https://pipe.jspsych.org) can send the files to an OSF project.
+- A Google Apps Script web app can save them to your Google Drive.
+
+Either way, the data passes through a third party, so the ethics application would need to name that party.
