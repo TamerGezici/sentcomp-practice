@@ -53,7 +53,7 @@ Other link options:
 
 ## What the family sends back
 
-At the end, the **Dosyaları gönder** button opens the phone's share menu (WhatsApp, e-mail, Drive…). Download links are also shown, as a fallback and for computers. The family sends you:
+At the end the parent sees two buttons, **Ses kaydını gönder** and **Tabloyu gönder**. Each one opens the phone's share menu (WhatsApp, e-mail, Drive…) for one file. The files go one at a time because WhatsApp on Android rejects a mixed audio + CSV share with "empty message". Download links are also shown. If WhatsApp still fails, the parent can download the files and attach them in WhatsApp via 📎 → Belge (Document). The family sends you:
 
 - `P07_2026-11-03_14h02_sentcomp-main.csv` (or `-test`): one row per sentence, with the same column names as the scanner output (`block_no`, `block_type`, `trial_no`, `stimuli`, `vis_sentence_started`, `vis_sentence_rt`, `vis_sentence_keys` …). It also has:
   - `mode`: `test` or `main`
@@ -61,7 +61,7 @@ At the end, the **Dosyaları gönder** button opens the phone's share menu (What
   - `audio_file`, `audio_onset`, `audio_offset`: where that sentence is in the recording, in seconds
   - `interrupted`: set to 1 if the child left the page in the middle of that sentence. The sentence is then shown again.
   - `mic`: `recorded`, `none`, or `lost`
-- `P07_..._rec1.webm`: the recording. On iPhone it may be `.m4a` instead. If the session was paused, for example by a phone call or by switching apps, recording starts again after the pause, so you get `rec2`, `rec3` and so on.
+- `P07_..._rec1.m4a`: the recording. It is AAC where the phone supports it (iPhone, most Android phones), otherwise `.webm` (Opus). **The trial log is also stored inside each recording**, so if only the audio arrives you still have everything. If the session was paused, for example by a phone call or by switching apps, recording starts again after the pause, so you get `rec2`, `rec3` and so on.
 
 The session is also kept on the phone. If the page is closed before the files are sent, opening the same link again shows the saved session with the same send buttons.
 
@@ -69,6 +69,8 @@ To get one clip per sentence (ffmpeg must be installed):
 
 ```
 python split_recording.py P07_2026-11-03_14h02_sentcomp-main.csv
+# or, if you only received the audio:
+python split_recording.py P07_2026-11-03_14h02_sentcomp-main_rec1.m4a
 ```
 
 This also writes the full recording as a WAV and an Audacity label track. In Audacity, use File → Import → Labels, and every sentence will be marked on the timeline.

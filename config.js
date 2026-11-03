@@ -30,6 +30,8 @@ window.CONFIG = {
   normalizeBlank: true,      // draw every run of underscores as the same-length line
                              // (the spreadsheet uses 2–6 underscores; the CSV keeps the original text)
   fullscreen: true,          // Android / desktop only; iPhone Safari has no page fullscreen
+  buttonFromBottom: '15vh',  // gap between the BİTTİ button and the bottom of the screen
+                             // (vh = % of screen height; never less than 56px)
   audioBitsPerSecond: 64000,
 };
 
@@ -102,12 +104,12 @@ window.TEXT = {
   // End screen (parent); the title and first line come from modes above
   endKeep: 'Sayfayı kapatırsanız, aynı bağlantıyı bu cihazda yeniden açarak dosyalara tekrar ulaşabilirsiniz.',
   endNoMic: 'Sesi başka bir telefonla kaydettiyseniz, o kaydı da gönderin.',
-  shareBtn: 'Dosyaları gönder',
-  shareHelp: 'Açılan menüden WhatsApp, e-posta veya Google Drive’ı seçin.',
-  shared: 'Paylaşım tamamlandı. Dosyaların ulaştığını araştırmacıyla teyit edin.',
+  shareAudio: 'Ses kaydını gönder',
+  shareTable: 'Tabloyu gönder',
+  shareHelp: 'Her düğme bir dosya gönderir. Açılan menüden WhatsApp, e-posta veya Google Drive’ı seçin; sonra sıradaki düğmeye dokunun.',
   shareFailed: 'Paylaşım menüsü açılamadı. Dosyaları aşağıdan indirip gönderebilirsiniz.',
   downloadHdr: 'Dosyaları indirin ve araştırmacıya gönderin:',
-  downloadAlt: 'Gönderme çalışmazsa dosyaları indirin:',
+  downloadAlt: 'WhatsApp hata verirse dosyaları buradan indirin, sonra WhatsApp’ta sohbeti açıp 📎 → Belge ile ekleyin:',
 };
 
 /* Test mode: separate items so the main run doesn't repeat them.

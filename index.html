@@ -95,7 +95,8 @@
   #stageText.fix { font-size: clamp(56px, 16vw, 120px); line-height: 1; }
   #stageText .nw { white-space: nowrap; }
   #stageText .blank { display: inline-block; width: 2.6em; height: 0; border-bottom: .075em solid currentColor; margin-left: .08em; }
-  #stageBar { padding: 0 16px calc(22px + env(safe-area-inset-bottom)); display: flex; justify-content: center; }
+  /* Raised off the bottom edge (away from the gesture bar / browser toolbar); set by CONFIG.buttonFromBottom */
+  #stageBar { padding: 0 16px calc(max(56px, var(--btn-lift, 15vh)) + env(safe-area-inset-bottom)); display: flex; justify-content: center; }
   #stageBtn {
     width: min(100%, 26rem); min-height: 78px;
     font: inherit; font-size: 1.7rem; font-weight: 750; letter-spacing: .06em;
@@ -198,6 +199,7 @@
     if (v) el.textContent = v; else if (el.hasAttribute('data-optional')) el.hidden = true;
   });
   document.title = T.title || document.title;
+  if (C.buttonFromBottom) document.documentElement.style.setProperty('--btn-lift', C.buttonFromBottom);
   (T.tips || []).forEach((t) => { const li = document.createElement('li'); li.textContent = t; $('tips').append(li); });
   $('pid').value = P.id;
 
@@ -329,7 +331,8 @@
   /* ---------------- audio recording ---------------- */
   function pickMime() {
     if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
-    const list = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus'];
+    // AAC/m4a first: WhatsApp, Windows and phones all handle it. WebM/Opus is the fallback.
+    const list = ['audio/mp4;codecs=mp4a.40.2', 'audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
     return list.find((m) => { try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } }) || '';
   }
   function extFor(type) {
@@ -620,40 +623,72 @@
   }
 
   /* ---------------- sending files ---------------- */
-  function buildFiles(sess, parts) {
-    const files = [new File([toCSV(sess.rows)], sess.base + '.csv', { type: 'text/csv' })];
-    parts.forEach((p) => files.push(new File([p.blob], p.name, { type: (p.type || p.blob.type || 'audio/webm').split(';')[0] })));
-    return files;
+  // The trial log is also written inside each audio file, so the recording alone is enough
+  // if the CSV gets lost. It sits in a block that players skip (MP4 'free' box / WebM Void
+  // element); tools/split_recording.py reads it back.
+  const LOG_MARK = 'SENTCOMP-LOG v1\n';
+  function withLog(blob, name, csv) {
+    const payload = new TextEncoder().encode(LOG_MARK + csv.replace(/^﻿/, ''));
+    let head;
+    if (/\.(m4a|mp4)$/i.test(name)) {
+      head = new Uint8Array(8);
+      new DataView(head.buffer).setUint32(0, 8 + payload.length);
+      head.set([0x66, 0x72, 0x65, 0x65], 4);                       // 'free'
+    } else if (/\.webm$/i.test(name)) {
+      head = new Uint8Array(9);
+      head[0] = 0xEC; head[1] = 0x01;                                // Void, 8-byte size
+      let n = payload.length;
+      for (let i = 8; i >= 2; i--) { head[i] = n % 256; n = Math.floor(n / 256); }
+    } else {
+      return blob;
+    }
+    return new Blob([blob, head, payload], { type: blob.type });
   }
-  function shareable(files) {
+  function buildFiles(sess, parts) {
+    const csv = toCSV(sess.rows);
+    const audio = parts.map((p) => new File([withLog(p.blob, p.name, csv)], p.name, { type: (p.type || p.blob.type || 'audio/webm').split(';')[0] }));
+    return { audio, table: new File([csv], sess.base + '.csv', { type: 'text/csv' }) };
+  }
+  // One file per share: WhatsApp on Android drops mixed multi-file shares ("empty message").
+  function shareableOne(f) {
     if (!navigator.share || !navigator.canShare) return null;
-    // Some Android builds only accept webm audio when it is labelled as video/webm.
-    const tries = [files, files.map((f) => (/\.webm$/i.test(f.name) ? new File([f], f.name, { type: 'video/webm' }) : f))];
-    for (const fs of tries) { try { if (navigator.canShare({ files: fs })) return fs; } catch (e) { /* try next */ } }
+    const alt = { m4a: ['audio/x-m4a', 'audio/aac'], webm: ['video/webm'], csv: ['text/comma-separated-values'] }[(f.name.split('.').pop() || '').toLowerCase()] || [];
+    for (const type of [f.type, ...alt]) {
+      const g = type === f.type ? f : new File([f], f.name, { type });
+      try { if (navigator.canShare({ files: [g] })) return g; } catch (e) { /* try next */ }
+    }
     return null;
   }
   function fmtSize(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
   function markSent(sess) { sess.sent = true; DB.putSession(sess); }
 
-  function sendUI(host, sess, files) {
+  function sendUI(host, sess, built) {
     host.innerHTML = '';
-    const sh = shareable(files);
-    if (sh) {
-      const b = el('button', 'btn', T.shareBtn); b.type = 'button';
-      const msg = el('p', 'note good'); msg.hidden = true;
+    const files = [...built.audio, built.table];
+    const items = [];
+    built.audio.forEach((f, i) => items.push({ f, label: T.shareAudio + (built.audio.length > 1 ? ` (${i + 1}/${built.audio.length})` : ''), primary: true }));
+    items.push({ f: built.table, label: T.shareTable, primary: false });
+    const msg = el('p', 'note bad'); msg.hidden = true;
+    let anyShare = false;
+    items.forEach((it) => {
+      const g = shareableOne(it.f);
+      if (!g) return;
+      anyShare = true;
+      const b = el('button', it.primary ? 'btn' : 'btn ghost', it.label); b.type = 'button';
       b.addEventListener('click', async () => {
         try {
-          await navigator.share({ files: sh, title: sess.base });
-          msg.className = 'note good'; msg.textContent = T.shared; msg.hidden = false;
-          markSent(sess);
+          await navigator.share({ files: [g] });
+          b.textContent = it.label + ' ✓';
+          if (it.primary) markSent(sess);
         } catch (e) {
           if (e && e.name === 'AbortError') return;
-          msg.className = 'note bad'; msg.textContent = T.shareFailed; msg.hidden = false;
+          msg.textContent = T.shareFailed; msg.hidden = false;
         }
       });
-      host.append(b, el('p', 'muted', T.shareHelp), msg);
-    }
-    host.append(el('h2', '', sh ? T.downloadAlt : T.downloadHdr));
+      host.append(b);
+    });
+    if (anyShare) host.append(el('p', 'muted', T.shareHelp), msg);
+    host.append(el('h2', '', anyShare ? T.downloadAlt : T.downloadHdr));
     const ul = el('ul', 'files');
     files.forEach((f) => {
       const li = el('li'), a = el('a', '', f.name);
