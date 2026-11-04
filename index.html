@@ -75,6 +75,7 @@
   .files span { white-space: nowrap; }
   .session { border: 1px solid var(--line); border-radius: 12px; padding: .2rem .9rem .9rem; margin: .7rem 0; }
   .session > p:first-child { font-weight: 600; }
+  .ver { font-size: .75rem; color: var(--muted); margin: 1.2rem 0 0; text-align: right; }
 
   /* ---------- child-facing task stage ---------- */
   #stage {
@@ -127,6 +128,7 @@
       <h2 data-t="storedTitle"></h2>
       <div id="storedList"></div>
     </section>
+    <p class="ver"></p>
   </div>
 </main>
 
@@ -156,6 +158,7 @@
     <div id="endFiles"></div>
     <p class="muted" data-t="endKeep"></p>
     <p class="muted" data-t="contact" data-optional></p>
+    <p class="ver"></p>
   </div>
 </main>
 
@@ -169,10 +172,13 @@
 <noscript><main class="page"><div class="card">Bu sayfa için JavaScript gerekli.</div></main></noscript>
 
 <script src="config.js"></script>
+<script src="lame.min.js"></script>  <!-- MP3 encoder (LAME, LGPL; see LAME-LICENSE.txt) -->
+
 <script>
 (function () {
   'use strict';
 
+  const VERSION = '2026-11-04';               // shown at the bottom of the parent screens
   const C = window.CONFIG || {};
   const T = window.TEXT || {};
   const SENT = window.SENTENCES || [];
@@ -199,6 +205,7 @@
     if (v) el.textContent = v; else if (el.hasAttribute('data-optional')) el.hidden = true;
   });
   document.title = T.title || document.title;
+  document.querySelectorAll('.ver').forEach((e) => { e.textContent = 'v' + VERSION; });
   if (C.buttonFromBottom) document.documentElement.style.setProperty('--btn-lift', C.buttonFromBottom);
   (T.tips || []).forEach((t) => { const li = document.createElement('li'); li.textContent = t; $('tips').append(li); });
   $('pid').value = P.id;
@@ -328,97 +335,93 @@
     },
   };
 
-  /* ---------------- audio recording ---------------- */
-  function pickMime() {
-    if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
-    // AAC/m4a first: WhatsApp, Windows and phones all handle it. WebM/Opus is the fallback.
-    const list = ['audio/mp4;codecs=mp4a.40.2', 'audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
-    return list.find((m) => { try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } }) || '';
-  }
-  function extFor(type) {
-    type = (type || '').toLowerCase();
-    if (type.includes('webm')) return 'webm';
-    if (type.includes('mp4') || type.includes('aac')) return 'm4a';
-    if (type.includes('ogg')) return 'ogg';
-    if (type.includes('wav')) return 'wav';
-    return 'webm';
-  }
-
+  /* ---------------- audio recording (MP3, encoded in the page) ---------------- */
+  // The browser's own recorder (MediaRecorder) gives WebM on Android and streaming MP4
+  // elsewhere, and WhatsApp refuses both. So the page captures raw audio with Web Audio
+  // and encodes MP3 as it goes (lame.min.js). Same file on every phone; nothing is uploaded.
   const Rec = {
-    stream: null, mime: '', cur: null, parts: [], n: 0,
-    supported() { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder); },
+    stream: null, ctx: null, src: null, cur: null, parts: [], n: 0,
+    supported() {
+      return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia &&
+        (window.AudioContext || window.webkitAudioContext) && window.lamejs);
+    },
+    // Create/resume the audio context. Call it synchronously inside a tap handler (iOS rule).
+    ensureCtx() {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      try {
+        if (!this.ctx || this.ctx.state === 'closed') this.ctx = new Ctx();
+        if (this.ctx.state !== 'running' && this.ctx.resume) this.ctx.resume().catch(() => {});
+      } catch (e) { return null; }
+      return this.ctx;
+    },
     async open() {
       this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       this.stream.getAudioTracks().forEach((t) => t.addEventListener('ended', () => pauseTask()));
-      this.mime = pickMime();
+      this.src = null;
     },
     live() { return !!this.stream && this.stream.getAudioTracks().some((t) => t.readyState === 'live'); },
     start() {
-      const no = ++this.n;
-      const opts = {};
-      if (this.mime) opts.mimeType = this.mime;
-      if (C.audioBitsPerSecond) opts.audioBitsPerSecond = C.audioBitsPerSecond;
-      let r;
-      try { r = new MediaRecorder(this.stream, opts); } catch (e) { r = new MediaRecorder(this.stream); }
-      const seg = { rec: r, startPerf: null, name: '', type: '' };
-      const chunks = [];
-      r.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-      seg.ended = new Promise((resolve) => {
-        r.onstop = () => {
-          const blob = new Blob(chunks, { type: seg.type || r.mimeType || 'audio/webm' });
-          const part = { name: seg.name, type: blob.type, blob };
-          if (blob.size) { this.parts.push(part); DB.putFile(session.base, part); }
-          if (this.cur === seg) this.cur = null;
-          resolve(part);
-        };
-      });
-      const callPerf = performance.now();
-      const started = new Promise((resolve) => {
-        let done = false;
-        const fin = (perf) => {
-          if (done) return; done = true;
-          seg.startPerf = perf;
-          seg.type = (r.mimeType || this.mime || 'audio/webm');
-          seg.name = `${session.base}_rec${no}.${extFor(seg.type)}`;
-          resolve();
-        };
-        r.onstart = () => fin(performance.now());
-        setTimeout(() => fin(callPerf), 1500);
-      });
-      r.onerror = (e) => console.warn('MediaRecorder error', e);
-      r.start(1000);
+      const ctx = this.ensureCtx();
+      if (!this.src) this.src = ctx.createMediaStreamSource(this.stream);
+      const no = ++this.n, sr = ctx.sampleRate;
+      const enc = new lamejs.Mp3Encoder(1, sr, C.mp3Kbps || 64);
+      const node = ctx.createScriptProcessor(4096, 1, 1);
+      const seg = { name: `${session.base}_rec${no}.mp3`, chunks: [], samples: 0, sr, node, enc,
+        startPerf: performance.now(), lastPerf: null };
+      node.onaudioprocess = (e) => {
+        const f = e.inputBuffer.getChannelData(0);
+        const pcm = new Int16Array(f.length);
+        for (let i = 0; i < f.length; i++) { const v = f[i] < -1 ? -1 : f[i] > 1 ? 1 : f[i]; pcm[i] = v < 0 ? v * 32768 : v * 32767; }
+        const out = enc.encodeBuffer(pcm);
+        if (out.length) seg.chunks.push(new Uint8Array(out));
+        seg.samples += f.length;
+        seg.lastPerf = performance.now();
+      };
+      this.src.connect(node);
+      node.connect(ctx.destination);           // needed for the node to run; it outputs silence
       this.cur = seg;
-      return started;
+      return Promise.resolve();
     },
     stop() {
       const seg = this.cur;
       if (!seg) return Promise.resolve(null);
-      try { if (seg.rec.state !== 'inactive') seg.rec.stop(); } catch (e) { /* already stopped */ }
-      return Promise.race([seg.ended, new Promise((r) => setTimeout(() => r(null), 4000))]);
+      this.cur = null;
+      seg.node.onaudioprocess = null;
+      try { this.src.disconnect(); } catch (e) { /* ignore */ }
+      try { seg.node.disconnect(); } catch (e) { /* ignore */ }
+      const tail = seg.enc.flush();
+      if (tail.length) seg.chunks.push(new Uint8Array(tail));
+      const blob = new Blob(seg.chunks, { type: 'audio/mpeg' });
+      const part = { name: seg.name, type: 'audio/mpeg', blob };
+      if (blob.size) { this.parts.push(part); DB.putFile(session.base, part); }
+      return Promise.resolve(part);
     },
+    // Position in the current recording, from the number of samples captured so far.
     at(perf) {
       const s = this.cur;
-      return s && s.startPerf != null ? { file: s.name, sec: (perf - s.startPerf) / 1000 } : { file: '', sec: 0 };
+      if (!s) return { file: '', sec: 0 };
+      const sec = s.lastPerf == null ? (perf - s.startPerf) / 1000 : s.samples / s.sr + (perf - s.lastPerf) / 1000;
+      return { file: s.name, sec: Math.max(0, sec) };
     },
-    close() { if (this.stream) this.stream.getTracks().forEach((t) => t.stop()); this.stream = null; },
+    close() {
+      if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
+      this.stream = null; this.src = null;
+      if (this.ctx) { try { this.ctx.close(); } catch (e) { /* ignore */ } this.ctx = null; }
+    },
   };
 
   /* ---------------- mic check screen ---------------- */
   let meter = null;
-  function newAudioContext() {
-    // Must be created inside the tap handler (before any await) or iOS keeps it suspended.
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return null;
-    try { const ctx = new Ctx(); if (ctx.resume) ctx.resume(); return ctx; } catch (e) { return null; }
-  }
   function startMeter(ctx, stream) {
     if (!ctx) return null;
     const an = ctx.createAnalyser();
     an.fftSize = 1024;
-    ctx.createMediaStreamSource(stream).connect(an);
+    const msrc = ctx.createMediaStreamSource(stream);
+    msrc.connect(an);
     const buf = new Uint8Array(an.fftSize);
     const bar = $('meterBar');
-    const m = { ctx, raf: 0 };
+    const m = { msrc, raf: 0 };
     const loop = () => {
       an.getByteTimeDomainData(buf);
       let s = 0;
@@ -432,7 +435,7 @@
   function stopMeter() {
     if (!meter) return;
     cancelAnimationFrame(meter.raf);
-    try { meter.ctx.close(); } catch (e) { /* ignore */ }
+    try { meter.msrc.disconnect(); } catch (e) { /* ignore */ }   // the context stays open for recording
     meter = null;
   }
   function micError(msg) { $('micErr').textContent = msg; $('micErr').hidden = false; }
@@ -496,7 +499,10 @@
   // Tap anywhere (or any key)
   const waitTap = (minDelay = 0) => abortable((res) => listen($('stage'), minDelay, true, res));
   // Same, but never cancelled (used on the pause screen itself)
-  const waitTapRaw = (minDelay = 0) => new Promise((res) => { const off = listen($('stage'), minDelay, true, (v) => { off(); res(v); }); });
+  // onTap runs inside the tap handler itself (needed to restart audio on iOS).
+  const waitTapRaw = (minDelay = 0, onTap) => new Promise((res) => {
+    const off = listen($('stage'), minDelay, true, (v) => { off(); if (onTap) onTap(); res(v); });
+  });
 
   // Run a screen; if interrupted, show the pause screen and run it again.
   async function step(fn) {
@@ -517,7 +523,7 @@
   async function resume() {
     await stopping;
     stage({ text: T.paused });
-    await waitTapRaw(0.4);
+    await waitTapRaw(0.4, () => { if (session.mic === 'recorded') Rec.ensureCtx(); });
     tryFullscreen();
     requestWakeLock();
     if (session.mic === 'recorded') {
@@ -624,12 +630,27 @@
 
   /* ---------------- sending files ---------------- */
   // The trial log is also written inside each audio file, so the recording alone is enough
-  // if the CSV gets lost. It sits in a block that players skip (MP4 'free' box / WebM Void
-  // element); tools/split_recording.py reads it back.
-  const LOG_MARK = 'SENTCOMP-LOG v1\n';
+  // if the CSV gets lost. It sits in a block that players skip (an ID3 tag in the MP3);
+  // tools/split_recording.py reads it back.
+  const LOG_MARK = 'SENTCOMP-LOG v1\n', LOG_END = '\nSENTCOMP-LOG-END\n';
   function withLog(blob, name, csv) {
-    const payload = new TextEncoder().encode(LOG_MARK + csv.replace(/^﻿/, ''));
+    const te = new TextEncoder();
+    const payload = te.encode(LOG_MARK + csv.replace(/^﻿/, '') + LOG_END);
     let head;
+    if (/\.mp3$/i.test(name)) {
+      // ID3v2.3 tag with one PRIV frame, placed before the MP3 frames
+      const owner = te.encode('sentcomp-log\0');
+      const fsize = owner.length + payload.length;
+      const tag = new Uint8Array(10 + 10 + fsize);
+      tag.set([0x49, 0x44, 0x33, 3, 0, 0], 0);                     // 'ID3' v2.3, no flags
+      const tsize = tag.length - 10;                                  // syncsafe size
+      tag.set([(tsize >> 21) & 0x7f, (tsize >> 14) & 0x7f, (tsize >> 7) & 0x7f, tsize & 0x7f], 6);
+      tag.set([0x50, 0x52, 0x49, 0x56], 10);                         // 'PRIV'
+      new DataView(tag.buffer).setUint32(14, fsize);
+      tag.set(owner, 20);
+      tag.set(payload, 20 + owner.length);
+      return new Blob([tag, blob], { type: blob.type });
+    }
     if (/\.(m4a|mp4)$/i.test(name)) {
       head = new Uint8Array(8);
       new DataView(head.buffer).setUint32(0, 8 + payload.length);
@@ -650,14 +671,20 @@
     return { audio, table: new File([csv], sess.base + '.csv', { type: 'text/csv' }) };
   }
   // One file per share: WhatsApp on Android drops mixed multi-file shares ("empty message").
-  function shareableOne(f) {
-    if (!navigator.share || !navigator.canShare) return null;
-    const alt = { m4a: ['audio/x-m4a', 'audio/aac'], webm: ['video/webm'], csv: ['text/comma-separated-values'] }[(f.name.split('.').pop() || '').toLowerCase()] || [];
-    for (const type of [f.type, ...alt]) {
-      const g = type === f.type ? f : new File([f], f.name, { type });
-      try { if (navigator.canShare({ files: [g] })) return g; } catch (e) { /* try next */ }
-    }
-    return null;
+  // Android browsers check each file's type against their own allowlist. Older lists (older
+  // Chrome, Samsung Internet) know MP3 only as 'audio/mp3'; newer ones also 'audio/mpeg'.
+  // canShare() does not check types, so if a share is refused the next tap tries the next label.
+  const SHARE_TYPES = {
+    mp3: isIOS ? ['audio/mpeg', 'audio/mp3'] : ['audio/mp3', 'audio/mpeg'],
+    csv: ['text/csv', 'text/comma-separated-values'],
+    m4a: ['audio/x-m4a'],
+    webm: ['audio/webm', 'video/webm'],
+  };
+  function shareVariants(f) {
+    if (!navigator.share || !navigator.canShare) return [];
+    const types = SHARE_TYPES[(f.name.split('.').pop() || '').toLowerCase()] || [f.type];
+    return types.map((t) => (t === f.type ? f : new File([f], f.name, { type: t })))
+      .filter((g) => { try { return navigator.canShare({ files: [g] }); } catch (e) { return false; } });
   }
   function fmtSize(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
   function markSent(sess) { sess.sent = true; DB.putSession(sess); }
@@ -671,18 +698,27 @@
     const msg = el('p', 'note bad'); msg.hidden = true;
     let anyShare = false;
     items.forEach((it) => {
-      const g = shareableOne(it.f);
-      if (!g) return;
+      const variants = shareVariants(it.f);
+      if (!variants.length) return;
       anyShare = true;
+      let k = 0;                                   // which type label to try on this tap
       const b = el('button', it.primary ? 'btn' : 'btn ghost', it.label); b.type = 'button';
       b.addEventListener('click', async () => {
+        msg.hidden = true;
         try {
-          await navigator.share({ files: [g] });
+          await navigator.share({ files: [variants[k]] });   // must stay the first call in the tap
           b.textContent = it.label + ' ✓';
           if (it.primary) markSent(sess);
         } catch (e) {
-          if (e && e.name === 'AbortError') return;
-          msg.textContent = T.shareFailed; msg.hidden = false;
+          const name = (e && e.name) || 'Error';
+          if (name === 'AbortError' && !/fail/i.test(e.message || '')) return;   // user closed the menu
+          if (name === 'NotAllowedError' && k < variants.length - 1) {
+            k++;
+            msg.textContent = T.shareRetry;
+          } else {
+            msg.textContent = `${T.shareFailed} (${name}: ${variants[k].type})`;
+          }
+          msg.hidden = false;
         }
       });
       host.append(b);
@@ -745,11 +781,10 @@
   $('btnMicAllow').addEventListener('click', async () => {
     $('micErr').hidden = true;
     $('btnMicAllow').disabled = true;
-    const ctx = newAudioContext();
+    const ctx = Rec.ensureCtx();               // inside the tap, before any await (iOS)
     try {
       await Rec.open();
     } catch (e) {
-      if (ctx) ctx.close();
       $('btnMicAllow').disabled = false;
       micError(e && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? T.micDenied : T.micFailed);
       return;

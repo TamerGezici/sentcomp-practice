@@ -18,12 +18,13 @@ Works on: iPhone (Safari), Android (Chrome), tablets, and computers (Chrome, Edg
 |---|---|
 | `index.html` | The task. You shouldn't need to edit it. |
 | `config.js` | Settings, all on-screen text (Turkish), and the sentence list. **Edit this file.** |
+| `lame.min.js` | MP3 encoder ([lamejs](https://github.com/zhuker/lamejs), a port of [LAME](https://lame.sourceforge.net), LGPL; see `LAME-LICENSE.txt`). Must be uploaded with the page. |
 | `tools/split_recording.py` | Run on your own computer. Cuts the recording into one WAV per sentence. Not needed on the website. |
 
 ## Put it online (about 5 minutes)
 
 1. Create a new **public** repository on GitHub, for example `sentcomp-practice`. Free GitHub Pages needs a public repository. Only the task and the sentences are in it, never any data.
-2. Upload `index.html` and `config.js` to the root of the repository. You can drag them into "Add file → Upload files".
+2. Upload `index.html`, `config.js`, `lame.min.js` and `LAME-LICENSE.txt` to the root of the repository. You can drag them into "Add file → Upload files".
 3. Go to **Settings → Pages**. Under "Build and deployment", choose **Deploy from a branch**, then `main` and `/ (root)`. Click Save.
 4. After about a minute the site is live at `https://<your-username>.github.io/sentcomp-practice/`.
 
@@ -61,7 +62,7 @@ At the end the parent sees two buttons, **Ses kaydını gönder** and **Tabloyu 
   - `audio_file`, `audio_onset`, `audio_offset`: where that sentence is in the recording, in seconds
   - `interrupted`: set to 1 if the child left the page in the middle of that sentence. The sentence is then shown again.
   - `mic`: `recorded`, `none`, or `lost`
-- `P07_..._rec1.m4a`: the recording. It is AAC where the phone supports it (iPhone, most Android phones), otherwise `.webm` (Opus). **The trial log is also stored inside each recording**, so if only the audio arrives you still have everything. If the session was paused, for example by a phone call or by switching apps, recording starts again after the pause, so you get `rec2`, `rec3` and so on.
+- `P07_..._rec1.mp3`: the recording (mono MP3, 64 kbps, about 0.5 MB per minute). The page encodes MP3 itself rather than using the phone's built-in recorder, which produces WebM or streaming MP4 files that WhatsApp refuses. **The trial log is also stored inside each recording**, so if only the audio arrives you still have everything. If the session was paused, for example by a phone call or by switching apps, recording starts again after the pause, so you get `rec2`, `rec3` and so on.
 
 The session is also kept on the phone. If the page is closed before the files are sent, opening the same link again shows the saved session with the same send buttons.
 
@@ -70,7 +71,7 @@ To get one clip per sentence (ffmpeg must be installed):
 ```
 python split_recording.py P07_2026-11-03_14h02_sentcomp-main.csv
 # or, if you only received the audio:
-python split_recording.py P07_2026-11-03_14h02_sentcomp-main_rec1.m4a
+python split_recording.py P07_2026-11-03_14h02_sentcomp-main_rec1.mp3
 ```
 
 This also writes the full recording as a WAV and an Audacity label track. In Audacity, use File → Import → Labels, and every sentence will be marked on the timeline.

@@ -4,7 +4,7 @@ Put the recording file(s) the family sent (and the CSV, if you have it) in one f
 either of:
 
     python split_recording.py P07_2026-11-03_14h02_sentcomp-main.csv
-    python split_recording.py P07_2026-11-03_14h02_sentcomp-main_rec1.m4a
+    python split_recording.py P07_2026-11-03_14h02_sentcomp-main_rec1.mp3
 
 The page also writes the trial log inside each recording, so the CSV is optional: given an
 audio file, the script recovers the log from it and saves it as the CSV first.
@@ -28,6 +28,7 @@ from pathlib import Path
 
 
 LOG_MARK = b'SENTCOMP-LOG v1\n'
+LOG_END = b'\nSENTCOMP-LOG-END\n'
 
 
 def ffmpeg(*args):
@@ -37,11 +38,12 @@ def ffmpeg(*args):
 def log_from_audio(audio):
     """Write the trial log embedded in a recording out as <session>.csv and return its path."""
     data = audio.read_bytes()
-    i = data.rfind(LOG_MARK)
+    i = data.find(LOG_MARK)
     if i < 0:
         sys.exit(f'No trial log inside {audio.name}. Use the CSV instead.')
+    j = data.find(LOG_END, i)
     out = audio.with_name(re.sub(r'_rec\d+$', '', audio.stem) + '.csv')
-    out.write_bytes(b'\xef\xbb\xbf' + data[i + len(LOG_MARK):])
+    out.write_bytes(b'\xef\xbb\xbf' + data[i + len(LOG_MARK):j if j >= 0 else None])
     print(f'trial log recovered from {audio.name} -> {out.name}')
     return out
 

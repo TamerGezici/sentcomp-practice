@@ -32,7 +32,7 @@ window.CONFIG = {
   fullscreen: true,          // Android / desktop only; iPhone Safari has no page fullscreen
   buttonFromBottom: '15vh',  // gap between the BİTTİ button and the bottom of the screen
                              // (vh = % of screen height; never less than 56px)
-  audioBitsPerSecond: 64000,
+  mp3Kbps: 64,               // MP3 bitrate (mono). 64 kbps ≈ 0.5 MB per minute
 };
 
 /* Text shown on screen. Parent-facing screens use "siz", child-facing screens use "sen". */
@@ -108,6 +108,7 @@ window.TEXT = {
   shareTable: 'Tabloyu gönder',
   shareHelp: 'Her düğme bir dosya gönderir. Açılan menüden WhatsApp, e-posta veya Google Drive’ı seçin; sonra sıradaki düğmeye dokunun.',
   shareFailed: 'Paylaşım menüsü açılamadı. Dosyaları aşağıdan indirip gönderebilirsiniz.',
+  shareRetry: 'Bu telefon dosyayı başka bir türde istiyor. Lütfen aynı düğmeye bir kez daha dokunun.',
   downloadHdr: 'Dosyaları indirin ve araştırmacıya gönderin:',
   downloadAlt: 'WhatsApp hata verirse dosyaları buradan indirin, sonra WhatsApp’ta sohbeti açıp 📎 → Belge ile ekleyin:',
 };
