@@ -28,10 +28,10 @@ window.CONFIG = {
   exampleSentence: 'Kedi kasedeki sütü ___.',
 
   normalizeBlank: true,      // draw every run of underscores as the same-length line
-                             // (the spreadsheet uses 2–6 underscores; the CSV keeps the original text)
+  // (the spreadsheet uses 2–6 underscores; the CSV keeps the original text)
   fullscreen: true,          // Android / desktop only; iPhone Safari has no page fullscreen
   buttonFromBottom: '15vh',  // gap between the BİTTİ button and the bottom of the screen
-                             // (vh = % of screen height; never less than 56px)
+  // (vh = % of screen height; never less than 56px)
   mp3Kbps: 64,               // MP3 bitrate (mono). 64 kbps ≈ 0.5 MB per minute
 };
 
@@ -152,8 +152,8 @@ window.SENTENCES = [
   "Fırından yeni çıkan sıcak patatesleri  ___. ",
   "Yarışmada birinci olunca ödül ___. ",
   "Öğretmenimiz tahtadaki yazıyı silgiyle ___. ",
-  "Sabah uyanınca yüzümü suyla ___. ",
-  "Marketten aldığımız yumurtalar yolda ___. ",
+  "Haftasonları oyun parkında oyun _____.",
+  "Aldığımız yumurtalar yolda düştü ve ___. ",
   "Kışın kocaman bir kardan adam ___. ",
   "Acıktığım için kantinden tost ___. ",
   "Yaz tatilinde denizde _____. ",
@@ -174,7 +174,7 @@ window.SENTENCES = [
   "Yağmur yağdığı için şemsiyeni ___.",
   "Çiftçi tarlasına tohum ___.",
   "Mayomu unuttuğum için denize ____.",
-  "Öğretmeni öğrencilere ödev ___.",
+  "Öğretmen öğrencilere ödev ___.",
   "Annem çayına iki şeker ___.",
   "Babası oğluna doğum günü hediyesi ____.",
   "Komşumuzun kızı bu sene beşinci sınıfa ___.",
@@ -186,14 +186,14 @@ window.SENTENCES = [
   "Berber, amcamın saçını çok kısa ____.",
   "Servis beni evime kadar ___.",
   "Ablam çok yüksek sesli müzik _____.",
-  "Harçlığımı kardeşime hediye almak için  ____.",
+  "Kendime bisiklet almak için para ____.",
   "Parktaki kaydıraktan ___.",
   "Geçen hafta ilk kez uçağa ____.",
   "Hastalanmamak için portakal suyu ____.",
   "Geçen sene grip aşısı ___.",
   "Bugün okulda en sevdiğim yemek ____.",
   "Kırtasiyeden yeni bir silgi ___.",
-  "Hava çok sıcak olduğu için _____.",
+  "Hava çok sıcak olduğu için havuzda _____.",
   "Babam evi temizlerken ona yardım ___.",
   "Sokakta yürürken yolda bir kedi ___.",
   "Baharda çiçekler ___.",
@@ -201,13 +201,13 @@ window.SENTENCES = [
   "Yapbozumun bir parçası ___.",
   "Tatilde bol bol ___.",
   "Kazağım kirlendiği için ___.",
-  "Kalemimi evde unutunca arkadaşımdan ___.",
+  "Arkadaşım bana bugün bir kalem ___.",
   "Kardeşim hastalandığı için okula ___.",
   "Ödevlerimi bitirince kitap ___.",
   "Televizyonda belgesel izlemeyi çok _____.",
   "Arkadaşımla marketten çikolata ___.",
   "Eve gelen misafirlere çay ___.",
-  "Sıcak havalarda su ___.",
+  "Çay içmek için ocakta su _____.",
   "Parkta koluma uğur böceği ___.",
   "Odam dağınık olunca ___.",
   "Çok şeker yediğim için karnım ___.",
